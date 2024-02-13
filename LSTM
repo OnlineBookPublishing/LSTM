@@ -1,18 +1,21 @@
-
 import yfinance as yf
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense
+from tensorflow.keras.layers import LSTM, Dense, Dropout
+from tensorflow.keras.optimizers import Adam
+from sklearn.metrics import mean_squared_error
 
-# Function to create the LSTM model
+# Function to create the LSTM model with dropout and increased complexity
 def create_lstm_model(input_shape):
     model = Sequential()
-    model.add(LSTM(50, return_sequences=True, input_shape=input_shape))
-    model.add(LSTM(50, return_sequences=False))
+    model.add(LSTM(100, return_sequences=True, input_shape=input_shape))
+    model.add(Dropout(0.2))
+    model.add(LSTM(100, return_sequences=False))
+    model.add(Dropout(0.2))
     model.add(Dense(1))
-    model.compile(optimizer='adam', loss='mean_squared_error')
+    model.compile(optimizer=Adam(learning_rate=0.001), loss='mean_squared_error')
     return model
 
 # Function to prepare data for LSTM
@@ -23,10 +26,8 @@ def prepare_lstm_data(data, window_size):
         y.append(data[i+window_size])
     return np.array(X), np.array(y)
 
-
-
-#  cryptocurrency price data from Yahoo Finance
-crypto_symbol = "BTC-USD"  
+# cryptocurrency price data from Yahoo Finance
+crypto_symbol = "BTC-USD"
 data = yf.download(crypto_symbol, period="1y", interval="1d")
 prices = data["Close"].values.reshape(-1, 1)
 
@@ -34,7 +35,7 @@ prices = data["Close"].values.reshape(-1, 1)
 scaler = MinMaxScaler(feature_range=(0, 1))
 prices_scaled = scaler.fit_transform(prices)
 
-#  window size for LSTM (number of past time steps to consider)
+# window size for LSTM (number of past time steps to consider)
 window_size = 60
 
 # Prepare the data for LSTM
@@ -45,33 +46,11 @@ split_idx = int(0.8 * len(X))
 X_train, X_test = X[:split_idx], X[split_idx:]
 y_train, y_test = y[:split_idx], y[split_idx:]
 
-# Create the LSTM model
+# Create the improved LSTM model
 model = create_lstm_model((X_train.shape[1], 1))
 
 # Train the model
-model.fit(X_train, y_train, epochs=50, batch_size=32, verbose=1)
-
-# Make predictions on the test data
-y_pred = model.predict(X_test)
-
-# Inverse scale the predictions and the actual prices
-y_pred_inv = scaler.inverse_transform(y_pred)
-y_test_inv = scaler.inverse_transform(y_test)
-
-
-# Plot the actual and predicted prices
-plt.figure(figsize=(12, 6))
-plt.plot(data.index[-len(y_test_inv):], y_test_inv, label='Actual Prices')
-plt.plot(data.index[-len(y_test_inv):], y_pred_inv, label='Predicted Prices')
-plt.xlabel('Date')
-plt.ylabel('Price (USD)')
-plt.title(f'{crypto_symbol} Price Prediction using LSTM')
-plt.legend()
-plt.grid(True)
-plt.tight_layout()
-plt.show()
-
-from sklearn.metrics import mean_squared_error
+model.fit(X_train, y_train, epochs=100, batch_size=32, verbose=1)
 
 # Make predictions on the test data
 y_pred = model.predict(X_test)
@@ -88,3 +67,15 @@ rmse = np.sqrt(mse)
 
 print(f"Mean Squared Error (MSE): {mse}")
 print(f"Root Mean Squared Error (RMSE): {rmse}")
+
+# Plot the actual and predicted prices
+plt.figure(figsize=(12, 6))
+plt.plot(data.index[-len(y_test_inv):], y_test_inv, label='Actual Prices')
+plt.plot(data.index[-len(y_test_inv):], y_pred_inv, label='Predicted Prices')
+plt.xlabel('Date')
+plt.ylabel('Price (USD)')
+plt.title(f'{crypto_symbol} Price Prediction using Improved LSTM')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
